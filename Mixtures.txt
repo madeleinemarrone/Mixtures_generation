@@ -1,0 +1,70 @@
+Generating Spectra from Artificial Data
+Mercury Consortium Calculated Spectra
+Create spectra from IR intensities:
+In[8]:= SpectrumManifest[freq_,intensity_,broadening_]:=PDF@MixtureDistribution[intensity,NormalDistribution[#,broadening]&/@freq]
+In[16]:= 
+In[10]:= waterFreqList=waterData[[1]];
+In[11]:= waterIntensityList=waterData[[2]];
+In[12]:= waterSpec=SpectrumManifest[waterFreqList,waterIntensityList,20];
+In[13]:= waterPlot=Plot[waterSpec[x],{x,0,4000},PlotRange->All]//Quiet
+Out[13]= 
+In[15]:= ethanolData=Transpose@Drop[Import["/Users/maddimarrone/Research/ethanol data.csv","Data"],2];
+In[17]:= ethanolFreqList=ethanolData[[1]];
+In[18]:= ethanolIntensityList=ethanolData[[2]];
+In[20]:= ethanolSpec=SpectrumManifest[ethanolFreqList,ethanolIntensityList,20];
+In[30]:= ethanolPlot=Plot[ethanolSpec[x],{x,0,4000},PlotRange->All]//Quiet
+Out[30]= 
+In[23]:= methanolData=Transpose@Drop[Import["/Users/maddimarrone/Research/methanol data.csv","Data"]2];
+In[24]:= methanolFreqList=methanolData[[1]];
+In[26]:= methanolIntensityList=methanolData[[2]];
+In[27]:= methanolSpec=SpectrumManifest[methanolFreqList,methanolIntensityList,20];
+In[28]:= methanolPlot=Plot[methanolSpec[x],{x,0,4000},PlotRange->All]//Quiet
+Out[28]= 
+In[31]:= acetaldData=Transpose@Drop[Import["/Users/maddimarrone/Research/acetaldehyde data.csv","Data"]2];
+In[32]:= acetaldFreqList=acetaldData[[1]];
+In[33]:= acetaldIntensityList=acetaldData[[2]];
+In[34]:= acetaldSpec=SpectrumManifest[acetaldFreqList,acetaldIntensityList,20];
+In[35]:= acetaldPlot=Plot[acetaldSpec[x],{x,0,4000},PlotRange->All]//Quiet
+Out[35]= 
+Extrapolating Data Points
+Create a function that will solve for points along the graph of pure spectra.
+In[424]:= GetPoints[spectra_]:=Table[spectra[x],{x,500,4000}]//Quiet
+In[438]:= waterPoints=GetPoints[waterSpec];
+ethanolPoints=GetPoints[ethanolSpec];
+methanolPoints=GetPoints[methanolSpec];
+acetaldehydePoints=GetPoints[acetaldSpec];
+(*normalize points to a scale of 0-1*)
+In[443]:= specMatrix=Rescale/@{waterPoints,ethanolPoints,methanolPoints,acetaldehydePoints};
+Dimensions[specMatrix]
+Out[444]= {4,3501}
+Concentration Diagram for Multi-dimensional Mixtures
+The stock solutions that create mixtures each have their own dimension in space. A point in space represents the concentrations of every species in the system as a separate component. 
+The Volume Fraction
+For our 4-component mixture, we are defining water as the origin (0,0). Ethanol, methanol, and acetaldehyde are all independent variables, water will be dependent on their sum.
+(*visualization of the region that each independent substance creates as a mixture*)
+In[328]:= RegionPlot3D[(e+m+a<=1),{e,0,1},{m,0,1},{a,0,1}]
+Out[328]= 
+We can create a function that samples points from a region defined by the convex hull of the mixture.
+(*the convex hull of our mixture*)
+In[451]:= species={{0,0,0},{1,0,0},{0,1,0},{0,0,1}}
+ConvexHullMesh[species]
+Out[452]= 
+(*sampling random points from this region yields three values that add up to <1 with the remaining amount being water*)
+RandomPoint[ConvexHullMesh[species]]
+Out[453]= {0.0629082,0.303091,0.375857}
+(*for the concentration matrix, want all 4 values*)
+In[394]:= volFractions[species_List]:=With[{w=1-Total[points=RandomPoint[mixture=ConvexHullMesh[species]]]},Prepend[w]@points]
+In[402]:= volFractions[species]
+Out[402]= {0.105168,0.135245,0.309746,0.449841}
+Now, we can construct our concentration "matrix" using this function.
+In[461]:= concMatrix=Table[volFractions[species],{i,20}];(*a list of 20 concentration values as {water, ethanol, methanol, acetaldehyde}*)
+Dimensions[concMatrix]
+Out[461]= {20,4}
+Simulated Data Generation
+We will evaluate the performance of various ML models using the absorbances from the pure spectra as predictor variables and the concentrations of all the mixture components as target variables. Applying a dot product between our two matrices yields a new matrix where each row is a new spectrum corresponding to a mixture of known concentrations.
+In[463]:= trainMixtures=concMatrix.specMatrix;
+Dimensions[trainMixtures]
+Out[464]= {20,3501}
+(*the spectrum for a mixture in this new matrix*)
+In[480]:= ListLinePlot[trainMixtures[[20]],PlotRange->All]
+Out[480]= 
